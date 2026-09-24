@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/qrz_service.dart';
+import '../services/credential_storage.dart';
 
 class LoginScreen extends StatefulWidget {
   final QrzService qrzService;
@@ -19,16 +20,16 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _credentialStorage = CredentialStorage();
   bool _isLoading = false;
   bool _obscurePassword = true;
+  bool _savePassword = true;
   String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
-    if (widget.qrzService.isLoggedIn) {
-      // Already logged in, show logged in state
-    }
+    _loadSavedCredentials();
   }
 
   @override
@@ -36,6 +37,16 @@ class _LoginScreenState extends State<LoginScreen> {
     _usernameController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+
+  /// 加载已保存的凭据
+  Future<void> _loadSavedCredentials() async {
+    final username = await _credentialStorage.getUsername();
+    final password = await _credentialStorage.getPassword();
+    if (username != null && password != null) {
+      _usernameController.text = username;
+      _passwordController.text = password;
+    }
   }
 
   Future<void> _login() async {
@@ -56,11 +67,24 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     if (result['success'] == true) {
+      // 保存凭据
+      if (_savePassword) {
+        await _credentialStorage.saveCredentials(
+          username: _usernameController.text.trim(),
+          password: _passwordController.text,
+          autoLogin: true,
+        );
+      } else {
+        await _credentialStorage.clearCredentials();
+      }
+
       widget.onLoginChanged(true, _usernameController.text.trim());
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(result['message']),
+            content: Text(
+              _savePassword ? "${result['message']}（已保存密码）" : "${result['message']}",
+            ),
             backgroundColor: Colors.green,
           ),
         );
@@ -72,16 +96,34 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  void _logout() {
+  void _logout() async {
     widget.qrzService.logout();
+    await _credentialStorage.markLoggedOut();
     widget.onLoginChanged(false, '');
     setState(() {});
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('已退出登录'),
-        backgroundColor: Colors.orange,
-      ),
-    );
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('已退出登录'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    }
+  }
+
+  /// 清除保存的密码
+  void _clearSavedPassword() async {
+    await _credentialStorage.clearCredentials();
+    _passwordController.clear();
+    setState(() {});
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('已清除保存的密码'),
+          backgroundColor: Colors.blue,
+        ),
+      );
+    }
   }
 
   @override
@@ -91,7 +133,7 @@ class _LoginScreenState extends State<LoginScreen> {
     if (widget.qrzService.isLoggedIn) {
       // Show logged in state
       return Padding(
-        padding: const EdgeInsets.all(32),
+        padding: EdgeInsets.all(MediaQuery.of(context).size.width < 700 ? 16 : 32),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -138,19 +180,55 @@ class _LoginScreenState extends State<LoginScreen> {
                         color: colorScheme.onSurface.withOpacity(0.6),
                       ),
                     ),
+                    const SizedBox(height: 8),
+                    FutureBuilder<bool>(
+                      future: _credentialStorage.wasLoggedIn(),
+                      builder: (context, snapshot) {
+                        final hasSaved = snapshot.data ?? false;
+                        if (hasSaved) {
+                          return Text(
+                            '密码已保存',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.green.withOpacity(0.7),
+                            ),
+                          );
+                        }
+                        return const SizedBox.shrink();
+                      },
+                    ),
                     const SizedBox(height: 24),
-                    SizedBox(
-                      width: 200,
-                      child: OutlinedButton.icon(
-                        onPressed: _logout,
-                        icon: const Icon(Icons.logout),
-                        label: const Text('退出登录'),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.red,
-                          side: const BorderSide(color: Colors.red),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        SizedBox(
+                          width: 200,
+                          child: OutlinedButton.icon(
+                            onPressed: _logout,
+                            icon: const Icon(Icons.logout),
+                            label: const Text('退出登录'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.red,
+                              side: const BorderSide(color: Colors.red),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                            ),
+                          ),
                         ),
-                      ),
+                        const SizedBox(width: 12),
+                        SizedBox(
+                          width: 200,
+                          child: OutlinedButton.icon(
+                            onPressed: _clearSavedPassword,
+                            icon: const Icon(Icons.delete_outline),
+                            label: const Text('清除保存的密码'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.orange,
+                              side: const BorderSide(color: Colors.orange),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -163,7 +241,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
     // Show login form
     return Padding(
-      padding: const EdgeInsets.all(32),
+      padding: EdgeInsets.all(MediaQuery.of(context).size.width < 700 ? 16 : 32),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -265,6 +343,27 @@ class _LoginScreenState extends State<LoginScreen> {
                           },
                         ),
                         const SizedBox(height: 8),
+
+                        // Save password toggle
+                        Row(
+                          children: [
+                            Checkbox(
+                              value: _savePassword,
+                              onChanged: (value) {
+                                setState(() {
+                                  _savePassword = value ?? true;
+                                });
+                              },
+                            ),
+                            Text(
+                              '保存密码',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: colorScheme.onSurface.withOpacity(0.7),
+                              ),
+                            ),
+                          ],
+                        ),
 
                         // Error message
                         if (_errorMessage != null)

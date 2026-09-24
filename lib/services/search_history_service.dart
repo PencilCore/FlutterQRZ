@@ -35,7 +35,7 @@ class SearchHistoryItem {
   /// 从 CallsignData 创建历史条目
   factory SearchHistoryItem.fromCallsignData(CallsignData data) {
     return SearchHistoryItem(
-      callsign: data.callsign,
+      callsign: data.call,
       name: data.fullName,
       country: data.country,
       searchTime: DateTime.now(),
@@ -75,7 +75,7 @@ class SearchHistoryService {
   ) async {
     // 移除已有的同一呼号记录
     history.removeWhere(
-        (item) => item.callsign.toUpperCase() == data.callsign.toUpperCase());
+        (item) => item.callsign.toUpperCase() == data.call.toUpperCase());
     // 在最前面插入新记录
     history.insert(0, SearchHistoryItem.fromCallsignData(data));
     // 限制最大数量

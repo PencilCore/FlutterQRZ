@@ -15,7 +15,7 @@ class DashboardScreen extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Padding(
-      padding: const EdgeInsets.all(32),
+      padding: EdgeInsets.all(MediaQuery.of(context).size.width < 700 ? 16 : 32),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -44,12 +44,17 @@ class DashboardScreen extends StatelessWidget {
 
           // Quick actions grid
           Expanded(
-            child: GridView.count(
-              crossAxisCount: 2,
-              crossAxisSpacing: 16,
-              mainAxisSpacing: 16,
-              childAspectRatio: 2.0,
-              children: [
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final double w = constraints.maxWidth;
+                final int cols = w < 560 ? 1 : (w < 900 ? 2 : 3);
+                final double ratio = w < 560 ? 3.4 : 2.2;
+                return GridView.count(
+                  crossAxisCount: cols,
+                  crossAxisSpacing: 16,
+                  mainAxisSpacing: 16,
+                  childAspectRatio: ratio,
+                  children: [
                 _buildFeatureCard(
                   context,
                   icon: Icons.search,
@@ -78,7 +83,9 @@ class DashboardScreen extends StatelessWidget {
                   subtitle: '管理收藏的呼号',
                   color: Colors.purple,
                 ),
-              ],
+                  ],
+                );
+              },
             ),
           ),
 
@@ -161,6 +168,8 @@ class DashboardScreen extends StatelessWidget {
                   children: [
                     Text(
                       title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
@@ -170,6 +179,8 @@ class DashboardScreen extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       subtitle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontSize: 12,
                         color: colorScheme.onSurface.withOpacity(0.5),
